@@ -53,10 +53,20 @@ Check **Plugins**: the row `dsh-run-progress` should be listed as enabled.
 - **Token → RMB estimate** — the pill appends the estimated cost of the Session's billable
   usage (`315k/1.0M · ≈¥0.63`), and the panel's Token section breaks it down per bucket, states
   the rate it used, and marks the figure as an estimate. Defaults are ¥2 / ¥0.2 / ¥2 / ¥3 per
-  1M tokens (uncached input / cache read / cache write / output); override them in this browser
-  with `localStorage['dsh-run-progress:pricing']` set to
-  `{"input":2,"cacheRead":0.2,"cacheWrite":2,"output":3}`. This is a status readout, not
+  1M tokens (uncached input / cache read / cache write / output). This is a status readout, not
   billing — the prices are local constants, not something DSH reports.
+- **Per-model prices** — the price table can carry one row per provider model, so a flash turn and
+  a pro turn are not billed at the same rate. Each settlement carries the model that produced it
+  (`message.source.model`), so every turn is priced at its own row; the Session total is priced at
+  the newest turn's row and names it, and each turn's tooltip names the row it used. Store a table
+  in this browser:
+  `localStorage['dsh-run-progress:pricing'] = {"default":{"input":2,"cacheRead":0.2,"cacheWrite":2,"output":3},"models":{"deepseek-v4-flash":{"input":0.5,"cacheRead":0.05,"cacheWrite":0.5,"output":1}}}`
+  A legacy flat row (`{"input":2,...}`) is still understood and prices every turn at the default.
+- **A task list, so the percentage means something** — the Host half contributes one short
+  system-prompt section asking the agent to call `todo_write` before multi-step work and keep it
+  current. The section is empty when the todo tool is not installed, so the prompt never names a
+  missing tool, and `DSH_RUN_PROGRESS_TODO_NUDGE=0` turns it off for profiles that carry their own
+  policy.
 - **Run flow panel** — click the rail or the pill. A Token section first (context occupancy,
   input / cache read / cache write / output, Session total), then the newest turns (up to eight)
   as compact cards: turn number, state, step count, elapsed time, one-line prompt and reply
@@ -97,15 +107,16 @@ and keeps no state of its own.
 
 ## Tests
 
-Two suites, both runnable without a DSH install:
+Four suites, all runnable without a DSH install:
 
 ```sh
-npm test            # offline render suite (hand-written React stand-in), 113 checks
+npm test            # offline render suite (hand-written React stand-in), 119 checks
 npm run test:zh     # the same suite driving the Chinese dictionary
+npm run test:host   # the Host half against a fake system-prompt/tools context
 ```
 
 The stand-in verifies the rendered tree but cannot enforce React's hook rules, so a
-third run renders the real entry with `react-dom` in jsdom and lets React itself
+fourth run renders the real entry with `react-dom` in jsdom and lets React itself
 check them:
 
 ```sh

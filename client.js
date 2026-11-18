@@ -75,6 +75,7 @@ window.__ModuleLoader__.load({
         cost: '费用',
         costEstimate: '估算',
         rateBasis: '按 ¥{input} / ¥{cacheRead} / ¥{cacheWrite} / ¥{output} 每百万 token',
+        rateModelBasis: '按 {model} 价目',
         expand: '点击展开详情',
         collapse: '点击收起详情',
         stepsCount: '{n} 步',
@@ -123,6 +124,7 @@ window.__ModuleLoader__.load({
         cost: 'Cost',
         costEstimate: 'estimate',
         rateBasis: 'at ¥{input} / ¥{cacheRead} / ¥{cacheWrite} / ¥{output} per 1M tokens',
+        rateModelBasis: 'priced at {model} rates',
         expand: 'click to expand the details',
         collapse: 'click to collapse the details',
         stepsCount: '{n} steps',
@@ -328,6 +330,7 @@ window.__ModuleLoader__.load({
             reason: '',
             prompt: '',
             reply: '',
+            model: '',
             steps: [],
             tools: [],
           }
@@ -391,6 +394,10 @@ window.__ModuleLoader__.load({
               turn.reply = clip(text, 140)
               turn.replyText = clip(text, 4000)
             }
+            // The settlement names the provider route it came from, which is what
+            // makes per-model pricing possible: the turn remembers its own model.
+            const source = data.message && data.message.source
+            if (source && typeof source.model === 'string' && source.model !== '') turn.model = source.model
             // Provider-reported usage of this settlement, attributed to its own
             // turn: the per-turn figures the panel shows beside the session total.
             const usage = data.usage
@@ -719,28 +726,71 @@ window.__ModuleLoader__.load({
     const DEFAULT_PRICING = { input: 2, cacheRead: 0.2, cacheWrite: 2, output: 3 }
     const PRICING_STORAGE_KEY = 'dsh-run-progress:pricing'
 
-    /** Stored rates merged over the defaults; anything unusable keeps the default. */
-    function readStoredPricing() {
-      const merged = { ...DEFAULT_PRICING }
-      try {
-        if (typeof localStorage === 'undefined') return merged
-        const raw = localStorage.getItem(PRICING_STORAGE_KEY)
-        if (!raw) return merged
-        const parsed = JSON.parse(raw)
-        if (!parsed || typeof parsed !== 'object') return merged
-        for (const key of Object.keys(DEFAULT_PRICING)) {
-          const value = parsed[key]
-          if (typeof value === 'number' && Number.isFinite(value) && value >= 0) merged[key] = value
+    /** One rate row; unusable fields keep the default, so a partial row is safe. */
+    function normalizeRates(value) {
+      if (!value || typeof value !== 'object') return undefined
+      const rates = { ...DEFAULT_PRICING }
+      let touched = false
+      for (const key of Object.keys(DEFAULT_PRICING)) {
+        const amount = value[key]
+        if (typeof amount === 'number' && Number.isFinite(amount) && amount >= 0) {
+          rates[key] = amount
+          touched = true
         }
-      } catch (error) {
-        // A blocked or malformed store keeps the defaults.
       }
-      return merged
+      return touched ? rates : undefined
     }
 
-    /** Estimated CNY cost of the four buckets, with each bucket's share. */
-    function costOf(usage, pricing) {
-      const rates = pricing || DEFAULT_PRICING
+    /**
+     * The stored price table.
+     *
+     * v1 was one flat rate row for every model. v2 keeps that row as `default`
+     * and adds a row per provider model id, so a flash turn and a pro turn are
+     * not priced as if they cost the same. A v1 value is still understood.
+     */
+    function normalizePricing(value) {
+      const table = { default: { ...DEFAULT_PRICING }, models: {} }
+      if (!value || typeof value !== 'object') return table
+      const flat = normalizeRates(value)
+      if (flat) {
+        table.default = flat
+        return table
+      }
+      const base = normalizeRates(value.default)
+      if (base) table.default = base
+      if (value.models && typeof value.models === 'object') {
+        for (const id of Object.keys(value.models)) {
+          const rates = normalizeRates(value.models[id])
+          if (rates && id !== '') table.models[id] = rates
+        }
+      }
+      return table
+    }
+
+    /** The row a model resolves to, and the model id when a specific row matched. */
+    function ratesFor(pricing, model) {
+      const table = pricing && pricing.default && pricing.models ? pricing : normalizePricing(pricing)
+      const id = typeof model === 'string' ? model : ''
+      const row = id !== '' && table.models[id] ? table.models[id] : table.default
+      return { rates: row || DEFAULT_PRICING, model: id !== '' && table.models[id] ? id : '' }
+    }
+
+    /** The price table this browser saved, normalised; a blocked store keeps defaults. */
+    function readStoredPricing() {
+      try {
+        if (typeof localStorage === 'undefined') return normalizePricing(undefined)
+        const raw = localStorage.getItem(PRICING_STORAGE_KEY)
+        if (!raw) return normalizePricing(undefined)
+        return normalizePricing(JSON.parse(raw))
+      } catch (error) {
+        return normalizePricing(undefined)
+      }
+    }
+
+    /** Estimated CNY cost of the four buckets at the row this model resolves to. */
+    function costOf(usage, pricing, model) {
+      const resolved = ratesFor(pricing, model)
+      const rates = resolved.rates
       const part = (tokens, rate) =>
         typeof tokens === 'number' && Number.isFinite(tokens) ? (tokens / 1_000_000) * rate : 0
       const input = part(usage.input, rates.input)
@@ -757,6 +807,8 @@ window.__ModuleLoader__.load({
         output,
         total: input + cacheRead + cacheWrite + output,
         known,
+        rates,
+        model: resolved.model,
       }
     }
 
@@ -987,6 +1039,7 @@ window.__ModuleLoader__.load({
     function TurnBlock(props) {
       const { turn, t, now, newest, pricing, expanded, onToggle } = props
       const elapsed = (turn.endedAt > 0 ? turn.endedAt : now) - turn.startedAt
+      const turnCost = costOf(turn.usage || {}, pricing, turn.model)
       const reasonKey = statusKey(turn.reason)
       const state = turn.endedAt === 0 ? t('statusRunning') : reasonKey ? t(reasonKey) : ''
       return h(
@@ -1037,8 +1090,15 @@ window.__ModuleLoader__.load({
                 h('span', null, t('tokens')),
                 h(
                   'span',
-                  { className: 'drp-turn-cost', title: t('costEstimate') },
-                  `≈${formatCny(costOf(turn.usage, pricing).total)}`,
+                  {
+                    className: 'drp-turn-cost',
+                    // The tooltip names the price row this turn was billed at, so a
+                    // per-model table is auditable per turn instead of only in total.
+                    title: turnCost.model
+                      ? `${t('costEstimate')} · ${t('rateModelBasis', { model: turnCost.model })}`
+                      : t('costEstimate'),
+                  },
+                  `≈${formatCny(turnCost.total)}`,
                 ),
               ),
               h(
@@ -1108,7 +1168,7 @@ window.__ModuleLoader__.load({
      * disjoint whole-log buckets, and the Session total.
      */
     function TokenBlock(props) {
-      const { t, usage, cost, pricing } = props
+      const { t, usage, cost } = props
       const hasUsage =
         usage.input !== undefined ||
         usage.output !== undefined ||
@@ -1188,14 +1248,17 @@ window.__ModuleLoader__.load({
                   `${t('output')} ${formatCny(cost.output)}`,
                 ].join(' · '),
               ),
+              cost.model
+                ? h('div', { className: 'drp-cost-rate drp-cost-model' }, t('rateModelBasis', { model: cost.model }))
+                : null,
               h(
                 'div',
                 { className: 'drp-cost-rate' },
                 t('rateBasis', {
-                  input: pricing.input,
-                  cacheRead: pricing.cacheRead,
-                  cacheWrite: pricing.cacheWrite,
-                  output: pricing.output,
+                  input: cost.rates.input,
+                  cacheRead: cost.rates.cacheRead,
+                  cacheWrite: cost.rates.cacheWrite,
+                  output: cost.rates.output,
                 }),
               ),
             )
@@ -1261,7 +1324,7 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'drp-body' },
-          h(TokenBlock, { key: 'tokens', t, usage, cost, pricing }),
+          h(TokenBlock, { key: 'tokens', t, usage, cost }),
           summary.hasTodos
             ? h(
                 'div',
@@ -1364,7 +1427,10 @@ window.__ModuleLoader__.load({
       const flow = React.useMemo(() => foldFlow(entries, open ? 8 : 1), [entries, open])
       const summary = React.useMemo(() => summarize(flow.turns, todos), [flow, todos])
       const usage = React.useMemo(() => deriveUsage(tokenUsage, contextPressure), [tokenUsage, contextPressure])
-      const cost = React.useMemo(() => costOf(usage, pricing), [usage, pricing])
+      const cost = React.useMemo(() => {
+        const model = summary.current && summary.current.model ? summary.current.model : ''
+        return costOf(usage, pricing, model)
+      }, [usage, pricing, summary])
       const current = summary.current
       const endedAt = current && current.endedAt > 0 ? current.endedAt : 0
 

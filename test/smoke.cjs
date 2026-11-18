@@ -198,7 +198,10 @@ function makeEntries() {
       {
         turn: 1,
         step: 1,
-        message: { content: [{ type: 'text', text: 'first answer' }] },
+        message: {
+          source: { kind: 'model', provider: 'deepseek', model: 'deepseek-v4-flash' },
+          content: [{ type: 'text', text: 'first answer' }],
+        },
         stream: [],
         usage: { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 0, cacheWriteTokens: 0 },
       },
@@ -217,7 +220,10 @@ function makeEntries() {
       {
         turn: 2,
         step: 1,
-        message: { content: [{ type: 'text', text: 'Tests pass, writing the UI now.' }] },
+        message: {
+          source: { kind: 'model', provider: 'deepseek', model: 'deepseek-v4-pro' },
+          content: [{ type: 'text', text: 'Tests pass, writing the UI now.' }],
+        },
         stream: [],
         usage: { inputTokens: 3200, outputTokens: 1100, cacheReadTokens: 12000, cacheWriteTokens: 0 },
       },
@@ -1124,6 +1130,72 @@ try {
 }
 check('opening and closing the panel keeps rendering', panelCrash === null, panelCrash && panelCrash.message)
 check('the panel opens on that transition', !!panelOpen && !!panelOpen.nodes.find((node) => node.type === 'aside'))
+
+/* ============================ per-model pricing calibration ================ */
+
+// A table with a row for the flash model and a zero default: only the flash turn
+// may cost anything, and the panel must name the row it used.
+storage.set(
+  'dsh-run-progress:pricing',
+  JSON.stringify({
+    default: { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 },
+    models: { 'deepseek-v4-flash': { input: 0, cacheRead: 0, cacheWrite: 0, output: 1000 } },
+  }),
+)
+const modelMount = mount(makeWorld({}))
+const modelRail = collect(modelMount.render()).nodes.find(
+  (node) => node.type === 'button' && String(node.props.className).includes('drp-rail'),
+)
+modelRail.props.onClick()
+const modelView = collect(modelMount.render())
+const modelText = modelView.text.filter((value) => typeof value === 'string')
+
+check(
+  'a per-model row prices its own turn',
+  modelText.some((value) => value.includes('≈¥0.500')),
+  modelText.filter((v) => v.includes('≈¥')).join(' | '),
+)
+const modelCostNode = modelView.nodes.find(
+  (node) => String(node.props.className || '').includes('drp-turn-cost') && Number(String(node.props.title || '').includes('deepseek-v4-flash')) === 1,
+)
+check(
+  'a priced turn names the model row in its tooltip',
+  !!modelCostNode,
+  modelView.nodes.filter((n) => String(n.props.className || '').includes('drp-turn-cost')).map((n) => n.props.title).join(' | '),
+)
+check(
+  'a turn on a model without a row falls back to the default row',
+  modelText.filter((value) => value === '≈¥0.0000').length >= 1,
+  modelText.filter((v) => v.includes('≈¥')).join(' | '),
+)
+const modelChip = collect(modelMount.render()).nodes.find(
+  (node) => node.type === 'button' && String(node.props.className).includes('drp-tokens'),
+)
+check(
+  'the session chip prices at the newest turn model',
+  !!modelChip && String(modelChip.props.title).includes('≈¥0.0000'),
+  modelChip && modelChip.props.title,
+)
+
+// A legacy v1 store (one flat row) must still work and must not claim a model.
+storage.set('dsh-run-progress:pricing', JSON.stringify({ input: 0, cacheRead: 0, cacheWrite: 0, output: 1000 }))
+const legacyMount = mount(makeWorld({}))
+const legacyRail = collect(legacyMount.render()).nodes.find(
+  (node) => node.type === 'button' && String(node.props.className).includes('drp-rail'),
+)
+legacyRail.props.onClick()
+const legacyText = collect(legacyMount.render()).text.filter((value) => typeof value === 'string')
+check(
+  'a legacy flat rate table still prices every turn',
+  legacyText.some((value) => value.includes('≈¥0.500')),
+  legacyText.filter((v) => v.includes('≈¥')).join(' | '),
+)
+check(
+  'a legacy table claims no model row',
+  !legacyText.some((value) => value.includes('价目') || value.includes(' rates')),
+  legacyText.filter((v) => v.includes('价目') || v.includes('rates')).join(' | '),
+)
+storage.delete('dsh-run-progress:pricing')
 
 console.log('')
 globalThis.setInterval = realSetInterval
