@@ -10,7 +10,9 @@ turn runs.
 
 **From the packaged tarball** (works without a registry):
 
-1. Download the tarball from [the latest release](https://github.com/wsqwsq735/dsh-run-progress/releases/latest)
+1. Download [`release/dsh-run-progress-0.7.2.tgz`](https://github.com/wsqwsq735/dsh-run-progress/raw/main/release/dsh-run-progress-0.7.2.tgz)
+   (it is committed to this repository, so the link works even when a release asset is missing;
+   the same file is attached to [the latest release](https://github.com/wsqwsq735/dsh-run-progress/releases/latest))
 2. **Plugins → Add plugin** and pick that file, or ask the agent in a session to run
    `install_bundle` with the absolute path of the downloaded `.tgz`
 3. Refresh the page once (`Ctrl+R`) when the install finishes

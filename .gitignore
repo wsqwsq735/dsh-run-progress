@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.tgz
+!release/*.tgz
 *.tar.gz
 *.log
 .DS_Store
