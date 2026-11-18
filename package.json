@@ -1,0 +1,61 @@
+{
+  "name": "dsh-run-progress",
+  "version": "0.7.2",
+  "description": "Right-edge run progress rail, live token readout with a RMB estimate, and a run-flow panel with per-turn token usage for the DSH Web GUI.",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "README.md",
+    "icon.svg"
+  ],
+  "scripts": {
+    "test": "node test/smoke.cjs en",
+    "test:zh": "node test/smoke.cjs zh",
+    "test:dom": "node test/react-dom.cjs"
+  },
+  "keywords": [
+    "deepseek",
+    "harness",
+    "dsh",
+    "dsh-plugin",
+    "run-progress",
+    "tokens",
+    "cost"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wsqwsq735/dsh-run-progress.git"
+  },
+  "homepage": "https://github.com/wsqwsq735/dsh-run-progress#readme",
+  "bugs": {
+    "url": "https://github.com/wsqwsq735/dsh-run-progress/issues"
+  },
+  "license": "MIT"
+}
