@@ -16,7 +16,7 @@ node test\smoke.cjs            # 退出码 0，末行 all checks passed
 
 清单：
 
-- [ ] `package.json` 版本号（当前 `0.7.1`）—— 每次发布 npm 必须递增，同版本不能重复发布
+- [ ] `package.json` 版本号（当前 `0.8.0`）—— 每次发布 npm 必须递增，同版本不能重复发布
 - [ ] `name`：`dsh-run-progress` 这个无作用域名很可能已被占用，发布前先 `npm view` 确认，
       被占用就改成 `@你的npm用户名/dsh-run-progress`
 - [ ] `description` 一句话说明（市场卡片会用它）
@@ -93,8 +93,8 @@ git push -u origin main
 打版本标签，方便市场读取「更新内容」：
 
 ```powershell
-git tag v0.7.1
-git push origin v0.7.1
+git tag v0.8.0
+git push origin v0.8.0
 ```
 
 建议在 GitHub 仓库里补齐这几项，市场与 DSH 安装页都会读：
@@ -137,7 +137,7 @@ git push origin v0.7.1
 | npm | 会话里让 agent 执行 `install_bundle`，target 填 `dsh-run-progress` 或 `@scope/dsh-run-progress`；或 **Plugins → Add plugin** 填包名 |
 | GitHub | **Plugins → Add plugin** 粘贴仓库地址（或市场卡片上的安装按钮） |
 | 本地目录 | `install_bundle` 的 target 指向本目录绝对路径（Junction 软链，改代码即时生效，刷新页面加载） |
-| 本地 tarball | **Plugins → Add plugin** 选 `dsh-run-progress-0.7.1.tgz` |
+| 本地 tarball | **Plugins → Add plugin** 选 `dsh-run-progress-<版本>.tgz` |
 
 安装后在 **Plugins** 页面确认行状态为已启用；客户端改动没有 `pnpm run dev:web` 时需 `Ctrl+R` 刷新一次。
 

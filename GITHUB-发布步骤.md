@@ -90,7 +90,7 @@ git init -b main
 git status
 ```
 
-期望：`No commits yet` + 一串 `Untracked files`，其中**不应出现** `dsh-run-progress-0.7.1.tgz`
+期望：`No commits yet` + 一串 `Untracked files`，其中**不应出现** `dsh-run-progress-<版本>.tgz`
 和 `node_modules/`（`.gitignore` 已排除；若出现了说明你 cd 错目录）。
 
 先跑一遍测试，确认要提交的是能用的版本：
@@ -206,16 +206,16 @@ git status
 标签（本机）：
 
 ```powershell
-git tag -a v0.7.1 -m "dsh-run-progress 0.7.1"
-git push origin v0.7.1
+git tag -a v0.8.0 -m "dsh-run-progress 0.8.0"
+git push origin v0.8.0
 ```
 
 Release（网页，30 秒）：
 
 1. 仓库页右侧 **Releases** → **Create a new release**
-2. **Choose a tag** 选 `v0.7.1` → Title 填 `v0.7.1`
+2. **Choose a tag** 选 `v0.8.0` → Title 填 `v0.8.0`
 3. Describe this release 写三条：进度条与上下文细栏 / 胶囊可拖动、双击复位、token→RMB 估算 / 面板按轮展开（点击展开）
-4. 可把 `dsh-run-progress-0.7.1.tgz` 拖进 *Attach binaries*，别人能直接下载安装
+4. 可把 `dsh-run-progress-<版本>.tgz` 拖进 *Attach binaries*，别人能直接下载安装
 5. **Publish release**
 
 > 插件市场会读 Release 标签说明当作「更新内容」，写清楚有助于用户理解升级。
@@ -257,11 +257,11 @@ git push
 ```powershell
 cd "D:\code\dsh-run-progress"
 node test\smoke.cjs en ; node test\smoke.cjs zh     # 1. 自测
-# 2. 改 package.json 版本号（0.7.1 -> 0.7.2），或 npm version patch
+# 2. 改 package.json 版本号（0.8.0 -> 0.8.1），或 npm version patch
 git add -A
 git commit -m "fix: ..."                            # 3. 提交
 git push                                            # 4. 推送
-git tag v0.7.2 ; git push origin v0.7.2             # 5. 打标签（要发 Release 时）
+git tag v0.8.1 ; git push origin v0.8.1             # 5. 打标签（要发 Release 时）
 ```
 
 发 npm 的版本号必须与 tag 一致（`npm publish` 见 PUBLISHING.md），市场靠版本对比判断「有更新」。
@@ -295,9 +295,9 @@ git add .
 git commit -m "feat: run progress rail, token readout with RMB estimate, per-turn run flow"
 git remote add origin https://github.com/你的用户名/dsh-run-progress.git
 git push -u origin main          # 首次会弹浏览器授权
-git tag -a v0.7.1 -m "dsh-run-progress 0.7.1"
-git push origin v0.7.1
+git tag -a v0.8.0 -m "dsh-run-progress 0.8.0"
+git push origin v0.8.0
 ```
 
-推完去 GitHub 建一个 Release 挂上 `dsh-run-progress-0.7.1.tgz`，就完成了。
+推完去 GitHub 建一个 Release 挂上 `dsh-run-progress-<版本>.tgz`，就完成了。
 上架 DSH 插件市场另见 [PUBLISHING.md](PUBLISHING.md) 第 3 节（PR 到 awesome-dsh-plugin）。
